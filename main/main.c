@@ -17,7 +17,22 @@
 char *TAG = "BLE-Server";
 uint8_t ble_addr_type;
 void ble_app_advertise(void);
-
+static int device_write_other(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
+  int i = 0;
+  if (strcmp((char *)ctxt->om->om_data, (char *)"LIGHT ON")==0)
+    {
+       printf("LIGHT ON x 2\n");
+       for( i = 0 ; i < 20; i++){
+       output_toggle_pin(GPIO_NUM_2);
+       vTaskDelay(200/portTICK_PERIOD_MS);
+       }
+        for(i = 0; i < strlen((char *)ctxt->om->om_data); i++){
+        memset(ctxt->om->om_data,0x00,strlen((char *)ctxt->om->om_data));
+    }
+    }
+    else {return 0;}
+    return 0;
+}
 // Write data to ESP32 defined as server
 static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -65,8 +80,16 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
     return 0;
 }
 
+static int device_read_second_service(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    os_mbuf_append(ctxt->om, "Hello world", strlen("Hello world"));
+    return 0;
+}
+
+
 // Array of pointers to other service definitions
 // UUID - Universal Unique Identifier
+//{0} để thể hiện rằng không còn mảng nữa
 static const struct ble_gatt_svc_def gatt_svcs[] = {
     {.type = BLE_GATT_SVC_TYPE_PRIMARY,
      .uuid = BLE_UUID16_DECLARE(0x180),                 // Define UUID for device type
@@ -76,8 +99,23 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
           .access_cb = device_read},
          {.uuid = BLE_UUID16_DECLARE(0xDEAD),           // Define UUID for writing
           .flags = BLE_GATT_CHR_F_WRITE,
-          .access_cb = device_write},
+          .access_cb = device_write,
+          },
+         {
+          .uuid = BLE_UUID16_DECLARE(0x1111),           // Define UUID for writing
+          .flags = BLE_GATT_CHR_F_WRITE,
+          .access_cb = device_write_other,
+         },
          {0}}},
+    {
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = BLE_UUID16_DECLARE(0x200),
+        .characteristics = (struct ble_gatt_chr_def[]){
+            {.uuid = BLE_UUID16_DECLARE(0xAAAA),           // Define UUID for reading
+             .flags = BLE_GATT_CHR_F_READ,
+             .access_cb = device_read_second_service,
+        },
+        {0}}},
     {0}};
 
 // BLE event handling
@@ -147,7 +185,7 @@ void app_main()
     esp_nimble_hci_and_controller_init();      // 2 - Initialize ESP controller
     nimble_port_init();   
                          // 3 - Initialize the host stack
-    ble_svc_gap_device_name_set("BLE-Server"); // 4 - Initialize NimBLE configuration - server name
+    ble_svc_gap_device_name_set("BLE NOW"); // 4 - Initialize NimBLE configuration - server name
     ble_svc_gap_init();                        // 4 - Initialize NimBLE configuration - gap service
     ble_svc_gatt_init();                       // 4 - Initialize NimBLE configuration - gatt service
     ble_gatts_count_cfg(gatt_svcs);            // 4 - Initialize NimBLE configuration - config gatt services
